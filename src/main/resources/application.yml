@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: note-server
+  
+  datasource:
+    url: jdbc:mysql://localhost:3306/notes_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: wan123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+  
+  elasticsearch:
+    uris: http://localhost:9200
+  
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# 文件上传配置
+file:
+  upload:
+    path: ./uploads
+    max-size: 52428800  # 50MB
+    allowed-types: image/jpeg,image/png,image/gif,image/webp,application/pdf
+
+# 日志配置
+logging:
+  level:
+    com.notes: DEBUG
+    org.springframework.data.elasticsearch: DEBUG
+
