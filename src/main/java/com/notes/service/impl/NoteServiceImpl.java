@@ -296,10 +296,16 @@ public class NoteServiceImpl implements NoteService {
                 JsonNode newNode = objectMapper.readTree(newJson);
                 JsonNode patch = JsonDiff.asJson(oldNode, newNode);
                 
-                String patchStr = objectMapper.writeValueAsString(patch);
-                version.setPatchData(patchStr);
-                log.debug("保存增量版本 {}，patch 大小: {} 字节", 
-                         note.getVersion(), patchStr.length());
+                // 如果 patch 为空数组 []，说明内容没有变化，patch_data 设为 null
+                if (patch.isArray() && patch.isEmpty()) {
+                    log.debug("版本 {} 内容无变化，patch_data 设为 null", note.getVersion());
+                    version.setPatchData(null);
+                } else {
+                    String patchStr = objectMapper.writeValueAsString(patch);
+                    version.setPatchData(patchStr);
+                    log.debug("保存增量版本 {}，patch 大小: {} 字节", 
+                             note.getVersion(), patchStr.length());
+                }
             } catch (Exception e) {
                 // 如果计算 patch 失败，降级为快照
                 log.warn("计算 patch 失败，降级为快照: {}", e.getMessage());
