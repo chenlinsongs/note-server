@@ -241,7 +241,9 @@ public class NoteServiceImpl implements NoteService {
         version.setIsSnapshot(isSnapshot);
         
         if (isSnapshot) {
-            version.setSnapshotData(note.getContent());
+            // 确保快照数据不为空，空内容保存为空字符串
+            String content = note.getContent();
+            version.setSnapshotData(content != null ? content : "");
         }
         
         version.setChangeSummary("版本 " + note.getVersion());
@@ -253,20 +255,19 @@ public class NoteServiceImpl implements NoteService {
         version.setUid(UidGenerator.generateNoteVersionUid());
         version.setNoteUid(note.getUid());
         version.setVersion(note.getVersion());
-        version.setIsSnapshot(isSnapshot);
+        // 简化：每个版本都保存完整内容，确保可以正确恢复
+        version.setIsSnapshot(true);
+        version.setSnapshotData(note.getContent());
         
-        if (isSnapshot) {
-            version.setSnapshotData(note.getContent());
-        } else {
+        // 同时保存差异（用于对比显示）
+        if (!isSnapshot && oldContent != null) {
             try {
-                JsonNode oldNode = objectMapper.readTree(oldContent != null ? oldContent : "{}");
+                JsonNode oldNode = objectMapper.readTree(oldContent);
                 JsonNode newNode = objectMapper.readTree(note.getContent() != null ? note.getContent() : "{}");
                 JsonNode patch = JsonDiff.asJson(oldNode, newNode);
                 version.setPatchData(objectMapper.writeValueAsString(patch));
             } catch (Exception e) {
-                log.error("计算差异失败，保存完整快照", e);
-                version.setIsSnapshot(true);
-                version.setSnapshotData(note.getContent());
+                log.debug("计算差异失败: {}", e.getMessage());
             }
         }
         
@@ -275,29 +276,17 @@ public class NoteServiceImpl implements NoteService {
     }
     
     private String restoreContentToVersion(String noteUid, Integer targetVersion) {
-        // 找到最近的快照
-        NoteVersion snapshot = noteVersionRepository.findLatestSnapshotBeforeVersion(noteUid, targetVersion)
-                .orElseThrow(() -> new ResourceNotFoundException("版本快照", "version", targetVersion));
+        // 直接获取目标版本
+        NoteVersion targetVersionEntity = noteVersionRepository.findByNoteUidAndVersion(noteUid, targetVersion)
+                .orElse(null);
         
-        try {
-            JsonNode content = objectMapper.readTree(snapshot.getSnapshotData());
-            
-            // 应用后续的 patch
-            List<NoteVersion> patches = noteVersionRepository.findVersionsBetween(noteUid, snapshot.getVersion(), targetVersion);
-            for (NoteVersion patch : patches) {
-                if (patch.getPatchData() != null && !patch.getIsSnapshot()) {
-                    JsonNode patchNode = objectMapper.readTree(patch.getPatchData());
-                    content = JsonPatch.apply(patchNode, content);
-                } else if (patch.getSnapshotData() != null) {
-                    content = objectMapper.readTree(patch.getSnapshotData());
-                }
-            }
-            
-            return objectMapper.writeValueAsString(content);
-        } catch (Exception e) {
-            log.error("恢复版本失败", e);
-            throw new RuntimeException("恢复版本失败: " + e.getMessage());
+        // 每个版本都保存了完整快照，直接返回
+        if (targetVersionEntity != null && targetVersionEntity.getSnapshotData() != null) {
+            return targetVersionEntity.getSnapshotData();
         }
+        
+        log.warn("未找到版本 {} 的数据", targetVersion);
+        return "";
     }
     
     private NoteDTO convertToDTO(Note note) {
