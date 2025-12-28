@@ -41,7 +41,7 @@ public class SearchServiceImpl implements SearchService {
         try {
             return searchWithElasticsearch(keyword, folderUid, pageable);
         } catch (Exception e) {
-            log.warn("Elasticsearch 搜索失败，降级到数据库搜索: {}", e.getMessage());
+            log.warn("Elasticsearch 搜索失败，降级到数据库搜索: {}", e.getMessage(),e);
             // 降级到数据库搜索
             return searchWithDatabase(keyword, folderUid, pageable);
         }
