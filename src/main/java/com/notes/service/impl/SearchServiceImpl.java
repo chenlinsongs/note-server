@@ -63,7 +63,7 @@ public class SearchServiceImpl implements SearchService {
         
         boolQueryBuilder.should(Query.of(q -> q
                 .match(m -> m
-                        .field("content")
+                        .field("content_text")
                         .query(keyword))));
         
         boolQueryBuilder.minimumShouldMatch("1");
@@ -72,7 +72,7 @@ public class SearchServiceImpl implements SearchService {
         if (folderUid != null && !folderUid.isEmpty()) {
             boolQueryBuilder.filter(Query.of(q -> q
                     .term(t -> t
-                            .field("folderUid")
+                            .field("folder_uid")
                             .value(folderUid))));
         }
         
@@ -86,7 +86,7 @@ public class SearchServiceImpl implements SearchService {
                         .fields("title", HighlightField.of(hf -> hf
                                 .preTags("<em>")
                                 .postTags("</em>")))
-                        .fields("content", HighlightField.of(hf -> hf
+                        .fields("content_text", HighlightField.of(hf -> hf
                                 .preTags("<em>")
                                 .postTags("</em>")
                                 .fragmentSize(150)
@@ -114,8 +114,8 @@ public class SearchServiceImpl implements SearchService {
                     if (highlights.containsKey("title")) {
                         dto.setHighlightTitle(String.join("", highlights.get("title")));
                     }
-                    if (highlights.containsKey("content")) {
-                        dto.setHighlightContent(String.join("...", highlights.get("content")));
+                    if (highlights.containsKey("content_text")) {
+                        dto.setHighlightContent(String.join("...", highlights.get("content_text")));
                     }
                 }
                 
