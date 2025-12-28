@@ -2,6 +2,7 @@ package com.notes.document;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
@@ -24,30 +25,36 @@ public class NoteDocument {
     
     @Id
     @Field(name = "note_uid", type = FieldType.Keyword)
+    @JsonProperty("note_uid")
     private String noteUid;
     
     @Field(name = "folder_uid", type = FieldType.Keyword)
+    @JsonProperty("folder_uid")
     private String folderUid;
     
     @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String title;
     
     @Field(name = "content_text", type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
+    @JsonProperty("content_text")
     private String content;
     
     @Field(type = FieldType.Keyword)
     private List<String> tags;
     
     @Field(name = "word_count", type = FieldType.Integer)
+    @JsonProperty("word_count")
     private Integer wordCount;
     
     @Field(name = "created_at", type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis")
+    @JsonProperty("created_at")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @JsonSerialize(using = LocalDateTimeSerializer.class)
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     private LocalDateTime createdAt;
     
     @Field(name = "updated_at", type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis")
+    @JsonProperty("updated_at")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @JsonSerialize(using = LocalDateTimeSerializer.class)
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
