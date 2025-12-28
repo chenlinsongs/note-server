@@ -25,5 +25,12 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     Integer countByFolderUid(String folderUid);
     
     boolean existsByUidAndDeletedFalse(String uid);
+    
+    // 数据库搜索（Elasticsearch 不可用时的备选方案）
+    @Query("SELECT n FROM Note n WHERE n.deleted = false AND (n.title LIKE %:keyword% OR n.contentText LIKE %:keyword%) ORDER BY n.updatedAt DESC")
+    Page<Note> searchByKeyword(String keyword, Pageable pageable);
+    
+    @Query("SELECT n FROM Note n WHERE n.deleted = false AND n.folderUid = :folderUid AND (n.title LIKE %:keyword% OR n.contentText LIKE %:keyword%) ORDER BY n.updatedAt DESC")
+    Page<Note> searchByKeywordAndFolder(String keyword, String folderUid, Pageable pageable);
 }
 
