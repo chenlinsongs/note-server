@@ -110,11 +110,15 @@ public class NoteServiceImpl implements NoteService {
                 .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
         
         String oldContent = note.getContent();
+        String newContent = request.getContent();
+        
+        // 检查内容是否有变化
+        boolean contentChanged = hasContentChanged(oldContent, newContent);
         
         // 标题为空时使用默认标题
         String title = request.getTitle();
         note.setTitle(title != null && !title.trim().isEmpty() ? title : DEFAULT_TITLE);
-        note.setContent(request.getContent());
+        note.setContent(newContent);
         if (request.getFolderUid() != null) {
             note.setFolderUid(request.getFolderUid());
         }
@@ -123,22 +127,30 @@ public class NoteServiceImpl implements NoteService {
         }
         
         // 提取纯文本和字数
-        String contentText = contentExtractor.extractText(request.getContent());
+        String contentText = contentExtractor.extractText(newContent);
         note.setContentText(contentText);
         note.setWordCount(contentExtractor.countWords(contentText));
-        note.setVersion(note.getVersion() + 1);
         
-        note = noteRepository.save(note);
+        // 只有内容变化时才增加版本号并保存版本记录
+        if (contentChanged) {
+            note.setVersion(note.getVersion() + 1);
+            note = noteRepository.save(note);
+            
+            // 保存版本（增量或快照）
+            boolean isSnapshot = note.getVersion() % SNAPSHOT_INTERVAL == 0 || note.getVersion() == 1;
+            saveVersionWithDiff(note, oldContent, isSnapshot);
+            log.debug("内容变化，保存版本 {}", note.getVersion());
+        } else {
+            // 内容没变化，只更新其他字段（标题、标签等）
+            note = noteRepository.save(note);
+            log.debug("内容无变化，不创建新版本");
+        }
         
         // 更新标签关联
         if (request.getTagUids() != null) {
             noteTagRepository.deleteByNoteUid(uid);
             saveNoteTags(uid, request.getTagUids());
         }
-        
-        // 保存版本（增量或快照）
-        boolean isSnapshot = note.getVersion() % SNAPSHOT_INTERVAL == 0;
-        saveVersionWithDiff(note, oldContent, isSnapshot);
         
         // 更新 ES 索引
         try {
@@ -148,6 +160,30 @@ public class NoteServiceImpl implements NoteService {
         }
         
         return convertToDTO(note);
+    }
+    
+    /**
+     * 检查内容是否有变化
+     */
+    private boolean hasContentChanged(String oldContent, String newContent) {
+        // 都为空，无变化
+        if ((oldContent == null || oldContent.isEmpty()) && 
+            (newContent == null || newContent.isEmpty())) {
+            return false;
+        }
+        // 一个为空一个不为空，有变化
+        if (oldContent == null || newContent == null) {
+            return true;
+        }
+        // 比较 JSON 内容
+        try {
+            JsonNode oldNode = objectMapper.readTree(oldContent);
+            JsonNode newNode = objectMapper.readTree(newContent);
+            return !oldNode.equals(newNode);
+        } catch (Exception e) {
+            // JSON 解析失败，直接比较字符串
+            return !oldContent.equals(newContent);
+        }
     }
     
     @Override
@@ -296,16 +332,10 @@ public class NoteServiceImpl implements NoteService {
                 JsonNode newNode = objectMapper.readTree(newJson);
                 JsonNode patch = JsonDiff.asJson(oldNode, newNode);
                 
-                // 如果 patch 为空数组 []，说明内容没有变化，patch_data 设为 null
-                if (patch.isArray() && patch.isEmpty()) {
-                    log.debug("版本 {} 内容无变化，patch_data 设为 null", note.getVersion());
-                    version.setPatchData(null);
-                } else {
-                    String patchStr = objectMapper.writeValueAsString(patch);
-                    version.setPatchData(patchStr);
-                    log.debug("保存增量版本 {}，patch 大小: {} 字节", 
-                             note.getVersion(), patchStr.length());
-                }
+                String patchStr = objectMapper.writeValueAsString(patch);
+                version.setPatchData(patchStr);
+                log.debug("保存增量版本 {}，patch 大小: {} 字节", 
+                         note.getVersion(), patchStr.length());
             } catch (Exception e) {
                 // 如果计算 patch 失败，降级为快照
                 log.warn("计算 patch 失败，降级为快照: {}", e.getMessage());
