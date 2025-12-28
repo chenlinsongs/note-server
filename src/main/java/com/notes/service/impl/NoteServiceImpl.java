@@ -241,13 +241,28 @@ public class NoteServiceImpl implements NoteService {
         version.setIsSnapshot(isSnapshot);
         
         if (isSnapshot) {
-            // 确保快照数据不为空，空内容保存为空字符串
+            // MySQL JSON 类型不接受空字符串，使用空 JSON 对象
             String content = note.getContent();
-            version.setSnapshotData(content != null ? content : "");
+            version.setSnapshotData(isValidJson(content) ? content : "{}");
         }
         
         version.setChangeSummary("版本 " + note.getVersion());
         noteVersionRepository.save(version);
+    }
+    
+    /**
+     * 检查字符串是否是有效的 JSON
+     */
+    private boolean isValidJson(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            objectMapper.readTree(str);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
     
     /**
@@ -267,27 +282,30 @@ public class NoteServiceImpl implements NoteService {
         version.setIsSnapshot(isSnapshot);
         
         if (isSnapshot) {
-            // 快照：保存完整内容
-            version.setSnapshotData(note.getContent() != null ? note.getContent() : "");
+            // 快照：保存完整内容（MySQL JSON 类型不接受空字符串）
+            String content = note.getContent();
+            version.setSnapshotData(isValidJson(content) ? content : "{}");
             log.debug("保存快照版本 {}", note.getVersion());
         } else {
             // 增量：只保存 patch
             try {
-                String oldJson = oldContent != null ? oldContent : "{}";
-                String newJson = note.getContent() != null ? note.getContent() : "{}";
+                String oldJson = isValidJson(oldContent) ? oldContent : "{}";
+                String newJson = isValidJson(note.getContent()) ? note.getContent() : "{}";
                 
                 JsonNode oldNode = objectMapper.readTree(oldJson);
                 JsonNode newNode = objectMapper.readTree(newJson);
                 JsonNode patch = JsonDiff.asJson(oldNode, newNode);
                 
-                version.setPatchData(objectMapper.writeValueAsString(patch));
+                String patchStr = objectMapper.writeValueAsString(patch);
+                version.setPatchData(patchStr);
                 log.debug("保存增量版本 {}，patch 大小: {} 字节", 
-                         note.getVersion(), version.getPatchData().length());
+                         note.getVersion(), patchStr.length());
             } catch (Exception e) {
                 // 如果计算 patch 失败，降级为快照
                 log.warn("计算 patch 失败，降级为快照: {}", e.getMessage());
                 version.setIsSnapshot(true);
-                version.setSnapshotData(note.getContent() != null ? note.getContent() : "");
+                String content = note.getContent();
+                version.setSnapshotData(isValidJson(content) ? content : "{}");
             }
         }
         
