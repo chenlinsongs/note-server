@@ -64,12 +64,16 @@ public class NoteServiceImpl implements NoteService {
         return convertToDTO(note);
     }
     
+    private static final String DEFAULT_TITLE = "未命名文档";
+    
     @Override
     @Transactional
     public NoteDTO createNote(NoteRequest request) {
         Note note = new Note();
         note.setUid(UidGenerator.generateNoteUid());
-        note.setTitle(request.getTitle());
+        // 标题为空时使用默认标题
+        String title = request.getTitle();
+        note.setTitle(title != null && !title.trim().isEmpty() ? title : DEFAULT_TITLE);
         note.setContent(request.getContent());
         note.setFolderUid(request.getFolderUid());
         note.setIsPinned(request.getIsPinned() != null && request.getIsPinned());
@@ -107,7 +111,9 @@ public class NoteServiceImpl implements NoteService {
         
         String oldContent = note.getContent();
         
-        note.setTitle(request.getTitle());
+        // 标题为空时使用默认标题
+        String title = request.getTitle();
+        note.setTitle(title != null && !title.trim().isEmpty() ? title : DEFAULT_TITLE);
         note.setContent(request.getContent());
         if (request.getFolderUid() != null) {
             note.setFolderUid(request.getFolderUid());
