@@ -250,24 +250,44 @@ public class NoteServiceImpl implements NoteService {
         noteVersionRepository.save(version);
     }
     
+    /**
+     * 保存版本（增量 patch 或 快照）
+     * 
+     * 存储策略：
+     * - 版本1、11、21... (版本号 % 10 == 1 或 版本1): 保存完整快照
+     * - 其他版本: 只保存与上一版本的差异 (JSON Patch)
+     * 
+     * 这样可以节省存储空间，同时保证恢复任意版本最多只需应用9个patch
+     */
     private void saveVersionWithDiff(Note note, String oldContent, boolean isSnapshot) {
         NoteVersion version = new NoteVersion();
         version.setUid(UidGenerator.generateNoteVersionUid());
         version.setNoteUid(note.getUid());
         version.setVersion(note.getVersion());
-        // 简化：每个版本都保存完整内容，确保可以正确恢复
-        version.setIsSnapshot(true);
-        version.setSnapshotData(note.getContent());
+        version.setIsSnapshot(isSnapshot);
         
-        // 同时保存差异（用于对比显示）
-        if (!isSnapshot && oldContent != null) {
+        if (isSnapshot) {
+            // 快照：保存完整内容
+            version.setSnapshotData(note.getContent() != null ? note.getContent() : "");
+            log.debug("保存快照版本 {}", note.getVersion());
+        } else {
+            // 增量：只保存 patch
             try {
-                JsonNode oldNode = objectMapper.readTree(oldContent);
-                JsonNode newNode = objectMapper.readTree(note.getContent() != null ? note.getContent() : "{}");
+                String oldJson = oldContent != null ? oldContent : "{}";
+                String newJson = note.getContent() != null ? note.getContent() : "{}";
+                
+                JsonNode oldNode = objectMapper.readTree(oldJson);
+                JsonNode newNode = objectMapper.readTree(newJson);
                 JsonNode patch = JsonDiff.asJson(oldNode, newNode);
+                
                 version.setPatchData(objectMapper.writeValueAsString(patch));
+                log.debug("保存增量版本 {}，patch 大小: {} 字节", 
+                         note.getVersion(), version.getPatchData().length());
             } catch (Exception e) {
-                log.debug("计算差异失败: {}", e.getMessage());
+                // 如果计算 patch 失败，降级为快照
+                log.warn("计算 patch 失败，降级为快照: {}", e.getMessage());
+                version.setIsSnapshot(true);
+                version.setSnapshotData(note.getContent() != null ? note.getContent() : "");
             }
         }
         
@@ -275,18 +295,94 @@ public class NoteServiceImpl implements NoteService {
         noteVersionRepository.save(version);
     }
     
+    /**
+     * 恢复指定版本的内容
+     * 
+     * 恢复流程：
+     * 1. 找到目标版本之前最近的快照
+     * 2. 获取快照内容
+     * 3. 按顺序应用从快照到目标版本之间的所有 patch
+     * 
+     * 示例：恢复版本7
+     *   版本1 [快照] → 获取内容 A
+     *   版本2 [patch] → A + patch2 = B
+     *   版本3 [patch] → B + patch3 = C
+     *   ...
+     *   版本7 [patch] → F + patch7 = G ✅
+     */
     private String restoreContentToVersion(String noteUid, Integer targetVersion) {
-        // 直接获取目标版本
+        // 1. 先检查目标版本是否存在
         NoteVersion targetVersionEntity = noteVersionRepository.findByNoteUidAndVersion(noteUid, targetVersion)
                 .orElse(null);
         
-        // 每个版本都保存了完整快照，直接返回
-        if (targetVersionEntity != null && targetVersionEntity.getSnapshotData() != null) {
+        if (targetVersionEntity == null) {
+            log.warn("版本 {} 不存在", targetVersion);
+            return "";
+        }
+        
+        // 2. 如果目标版本本身是快照，直接返回
+        if (Boolean.TRUE.equals(targetVersionEntity.getIsSnapshot()) 
+                && targetVersionEntity.getSnapshotData() != null) {
+            log.debug("版本 {} 是快照，直接返回", targetVersion);
             return targetVersionEntity.getSnapshotData();
         }
         
-        log.warn("未找到版本 {} 的数据", targetVersion);
-        return "";
+        // 3. 找到目标版本之前最近的快照
+        NoteVersion snapshot = noteVersionRepository.findLatestSnapshotBeforeVersion(noteUid, targetVersion)
+                .orElse(null);
+        
+        if (snapshot == null) {
+            log.error("未找到版本 {} 之前的快照", targetVersion);
+            return "";
+        }
+        
+        log.debug("从快照版本 {} 开始恢复到版本 {}", snapshot.getVersion(), targetVersion);
+        
+        // 4. 获取快照内容
+        String snapshotData = snapshot.getSnapshotData();
+        if (snapshotData == null || snapshotData.trim().isEmpty()) {
+            log.warn("快照版本 {} 内容为空", snapshot.getVersion());
+            return "";
+        }
+        
+        // 5. 如果快照版本就是目标版本，直接返回
+        if (snapshot.getVersion().equals(targetVersion)) {
+            return snapshotData;
+        }
+        
+        // 6. 获取从快照到目标版本之间的所有版本（按版本号升序）
+        List<NoteVersion> patchVersions = noteVersionRepository.findVersionsBetween(
+                noteUid, snapshot.getVersion(), targetVersion);
+        
+        if (patchVersions.isEmpty()) {
+            log.debug("快照版本 {} 到目标版本 {} 之间没有 patch", snapshot.getVersion(), targetVersion);
+            return snapshotData;
+        }
+        
+        // 7. 依次应用 patch
+        try {
+            JsonNode content = objectMapper.readTree(snapshotData);
+            
+            for (NoteVersion patchVersion : patchVersions) {
+                if (Boolean.TRUE.equals(patchVersion.getIsSnapshot())) {
+                    // 如果遇到快照，直接使用快照内容
+                    if (patchVersion.getSnapshotData() != null) {
+                        content = objectMapper.readTree(patchVersion.getSnapshotData());
+                        log.debug("应用快照版本 {}", patchVersion.getVersion());
+                    }
+                } else if (patchVersion.getPatchData() != null && !patchVersion.getPatchData().isEmpty()) {
+                    // 应用 patch
+                    JsonNode patch = objectMapper.readTree(patchVersion.getPatchData());
+                    content = JsonPatch.apply(patch, content);
+                    log.debug("应用 patch 版本 {}", patchVersion.getVersion());
+                }
+            }
+            
+            return objectMapper.writeValueAsString(content);
+        } catch (Exception e) {
+            log.error("恢复版本 {} 失败: {}", targetVersion, e.getMessage(), e);
+            return "";
+        }
     }
     
     private NoteDTO convertToDTO(Note note) {
