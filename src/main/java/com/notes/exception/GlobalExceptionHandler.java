@@ -32,8 +32,9 @@ public class GlobalExceptionHandler {
     
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        // 仅记录日志，不打印堆栈到控制台
-        log.error("服务器内部错误: {}", e.getMessage());
+        // 日志记录完整堆栈信息（用于排查问题）
+        log.error("服务器内部错误", e);
+        // 返回给前端的只显示简洁信息
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(500, "服务器内部错误，请稍后重试"));
     }
