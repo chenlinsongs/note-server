@@ -15,3 +15,5 @@ public interface EmbedBlockRepository extends JpaRepository<EmbedBlock, Long> {
     List<EmbedBlock> findByNoteUidAndDeletedFalse(String noteUid);
 }
 
+
+

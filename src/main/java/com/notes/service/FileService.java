@@ -8,3 +8,5 @@ public interface FileService {
     FileUploadDTO uploadFile(MultipartFile file, String noteUid);
 }
 
+
+

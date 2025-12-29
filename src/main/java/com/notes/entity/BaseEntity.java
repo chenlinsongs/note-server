@@ -36,3 +36,5 @@ public abstract class BaseEntity {
     private LocalDateTime deletedAt;
 }
 
+
+

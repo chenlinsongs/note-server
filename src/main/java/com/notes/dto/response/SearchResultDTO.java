@@ -18,3 +18,5 @@ public class SearchResultDTO {
     private Float score;
 }
 
+
+

@@ -25,3 +25,5 @@ public interface FolderRepository extends JpaRepository<Folder, Long> {
     boolean existsByUidAndDeletedFalse(String uid);
 }
 
+
+

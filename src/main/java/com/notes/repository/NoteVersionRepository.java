@@ -25,3 +25,5 @@ public interface NoteVersionRepository extends JpaRepository<NoteVersion, Long> 
     Integer findMaxVersionByNoteUid(String noteUid);
 }
 
+
+
