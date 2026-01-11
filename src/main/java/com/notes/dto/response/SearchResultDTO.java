@@ -13,6 +13,8 @@ public class SearchResultDTO {
     private String highlightTitle;
     private String highlightContent;
     private String folderUid;
+    private String folderName;
+    private String folderPath; // 完整文件夹路径，如 "父文件夹 / 子文件夹"
     private List<String> tags;
     private LocalDateTime updatedAt;
     private Float score;

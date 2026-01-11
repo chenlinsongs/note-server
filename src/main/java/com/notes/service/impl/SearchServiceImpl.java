@@ -9,7 +9,9 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HighlightField;
 import com.notes.document.NoteDocument;
 import com.notes.dto.response.SearchResultDTO;
+import com.notes.entity.Folder;
 import com.notes.entity.Note;
+import com.notes.repository.FolderRepository;
 import com.notes.repository.NoteRepository;
 import com.notes.repository.NoteSearchRepository;
 import com.notes.repository.NoteTagRepository;
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class SearchServiceImpl implements SearchService {
     private final NoteSearchRepository noteSearchRepository;
     private final NoteRepository noteRepository;
     private final NoteTagRepository noteTagRepository;
+    private final FolderRepository folderRepository;
     private final ElasticsearchClient elasticsearchClient;
     
     @Override
@@ -95,6 +99,22 @@ public class SearchServiceImpl implements SearchService {
         // 执行搜索
         SearchResponse<NoteDocument> response = elasticsearchClient.search(searchRequest, NoteDocument.class);
         
+        // 收集所有文件夹UID
+        List<String> folderUids = response.hits().hits().stream()
+                .map(hit -> hit.source())
+                .filter(doc -> doc != null && doc.getFolderUid() != null)
+                .map(NoteDocument::getFolderUid)
+                .distinct()
+                .toList();
+        
+        // 批量查询文件夹信息
+        Map<String, Folder> folderMap = folderRepository.findByUidIn(folderUids).stream()
+                .collect(Collectors.toMap(Folder::getUid, f -> f));
+        
+        // 获取所有文件夹用于构建路径名称
+        Map<String, Folder> allFolders = folderRepository.findByDeletedFalseOrderByPathAsc().stream()
+                .collect(Collectors.toMap(Folder::getUid, f -> f));
+        
         // 转换结果
         List<SearchResultDTO> results = new ArrayList<>();
         for (Hit<NoteDocument> hit : response.hits().hits()) {
@@ -104,6 +124,14 @@ public class SearchServiceImpl implements SearchService {
                 dto.setUid(doc.getNoteUid());
                 dto.setTitle(doc.getTitle());
                 dto.setFolderUid(doc.getFolderUid());
+                
+                // 设置文件夹名称和完整路径
+                Folder folder = folderMap.get(doc.getFolderUid());
+                if (folder != null) {
+                    dto.setFolderName(folder.getName());
+                    dto.setFolderPath(buildFolderPathName(folder, allFolders));
+                }
+                
                 dto.setTags(doc.getTags());
                 dto.setUpdatedAt(doc.getUpdatedAt());
                 dto.setScore(hit.score() != null ? hit.score().floatValue() : 0f);
@@ -128,6 +156,21 @@ public class SearchServiceImpl implements SearchService {
     }
     
     /**
+     * 构建文件夹完整路径名称，如 "父文件夹 / 子文件夹"
+     */
+    private String buildFolderPathName(Folder folder, Map<String, Folder> allFolders) {
+        List<String> pathNames = new ArrayList<>();
+        Folder current = folder;
+        
+        while (current != null) {
+            pathNames.add(0, current.getName());
+            current = current.getParentUid() != null ? allFolders.get(current.getParentUid()) : null;
+        }
+        
+        return String.join(" / ", pathNames);
+    }
+    
+    /**
      * 使用数据库搜索（Elasticsearch 不可用时的降级方案）
      */
     private Page<SearchResultDTO> searchWithDatabase(String keyword, String folderUid, Pageable pageable) {
@@ -138,11 +181,32 @@ public class SearchServiceImpl implements SearchService {
             notes = noteRepository.searchByKeyword(keyword, pageable);
         }
         
+        // 批量查询文件夹信息
+        List<String> folderUids = notes.getContent().stream()
+                .map(Note::getFolderUid)
+                .filter(uid -> uid != null)
+                .distinct()
+                .toList();
+        Map<String, Folder> folderMap = folderRepository.findByUidIn(folderUids).stream()
+                .collect(Collectors.toMap(Folder::getUid, f -> f));
+        
+        // 获取所有文件夹用于构建路径名称
+        Map<String, Folder> allFolders = folderRepository.findByDeletedFalseOrderByPathAsc().stream()
+                .collect(Collectors.toMap(Folder::getUid, f -> f));
+        
         List<SearchResultDTO> results = notes.getContent().stream().map(note -> {
             SearchResultDTO dto = new SearchResultDTO();
             dto.setUid(note.getUid());
             dto.setTitle(note.getTitle());
             dto.setFolderUid(note.getFolderUid());
+            
+            // 设置文件夹名称和完整路径
+            Folder folder = folderMap.get(note.getFolderUid());
+            if (folder != null) {
+                dto.setFolderName(folder.getName());
+                dto.setFolderPath(buildFolderPathName(folder, allFolders));
+            }
+            
             dto.setUpdatedAt(note.getUpdatedAt());
             dto.setScore(1.0f);
             

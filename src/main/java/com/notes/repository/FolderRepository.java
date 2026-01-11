@@ -23,6 +23,8 @@ public interface FolderRepository extends JpaRepository<Folder, Long> {
     List<Folder> findByPathStartingWith(String pathPrefix);
     
     boolean existsByUidAndDeletedFalse(String uid);
+    
+    List<Folder> findByUidIn(List<String> uids);
 }
 
 
