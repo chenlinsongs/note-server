@@ -65,6 +65,17 @@ public class NoteServiceImpl implements NoteService {
     }
     
     private static final String DEFAULT_TITLE = "未命名文档";
+    private static final String DEFAULT_CONTENT = "{}";
+    
+    /**
+     * 确保 content 是有效的 JSON 字符串
+     */
+    private String ensureValidJsonContent(String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return DEFAULT_CONTENT;
+        }
+        return content;
+    }
     
     @Override
     @Transactional
@@ -74,7 +85,7 @@ public class NoteServiceImpl implements NoteService {
         // 标题为空时使用默认标题
         String title = request.getTitle();
         note.setTitle(title != null && !title.trim().isEmpty() ? title : DEFAULT_TITLE);
-        note.setContent(request.getContent());
+        note.setContent(ensureValidJsonContent(request.getContent()));
         note.setFolderUid(request.getFolderUid());
         note.setIsPinned(request.getIsPinned() != null && request.getIsPinned());
         
@@ -110,7 +121,7 @@ public class NoteServiceImpl implements NoteService {
                 .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
         
         String oldContent = note.getContent();
-        String newContent = request.getContent();
+        String newContent = ensureValidJsonContent(request.getContent());
         
         // 检查内容是否有变化
         boolean contentChanged = hasContentChanged(oldContent, newContent);
@@ -235,7 +246,7 @@ public class NoteServiceImpl implements NoteService {
         Note note = noteRepository.findByUidAndDeletedFalse(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
         
-        String restoredContent = restoreContentToVersion(uid, version);
+        String restoredContent = ensureValidJsonContent(restoreContentToVersion(uid, version));
         
         note.setContent(restoredContent);
         String contentText = contentExtractor.extractText(restoredContent);
