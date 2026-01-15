@@ -23,6 +23,8 @@ public interface NoteVersionRepository extends JpaRepository<NoteVersion, Long> 
     
     @Query("SELECT MAX(nv.version) FROM NoteVersion nv WHERE nv.noteUid = :noteUid")
     Integer findMaxVersionByNoteUid(String noteUid);
+    
+    void deleteByNoteUid(String noteUid);
 }
 
 

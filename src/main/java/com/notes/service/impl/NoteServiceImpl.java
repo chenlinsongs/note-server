@@ -475,6 +475,7 @@ public class NoteServiceImpl implements NoteService {
         dto.setIsPinned(note.getIsPinned());
         dto.setCreatedAt(note.getCreatedAt());
         dto.setUpdatedAt(note.getUpdatedAt());
+        dto.setDeletedAt(note.getDeletedAt());
         dto.setTags(getNoteTags(note.getUid()));
         
         // 生成摘要
@@ -512,6 +513,60 @@ public class NoteServiceImpl implements NoteService {
         dto.setChangeSummary(version.getChangeSummary());
         dto.setCreatedAt(version.getCreatedAt());
         return dto;
+    }
+    
+    // ================= 垃圾桶相关方法 =================
+    
+    @Override
+    public Page<NoteListDTO> getDeletedNotes(Pageable pageable) {
+        Page<Note> notes = noteRepository.findByDeletedTrueOrderByDeletedAtDesc(pageable);
+        return notes.map(this::convertToListDTO);
+    }
+    
+    @Override
+    @Transactional
+    public void restoreNote(String uid) {
+        Note note = noteRepository.findByUidAndDeletedTrue(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
+        
+        note.setDeleted(false);
+        note.setDeletedAt(null);
+        noteRepository.save(note);
+        
+        // 重新索引到 ES
+        try {
+            searchService.indexNote(note.getUid());
+        } catch (Exception e) {
+            log.warn("恢复索引失败: {}", e.getMessage());
+        }
+    }
+    
+    @Override
+    @Transactional
+    public void permanentlyDeleteNote(String uid) {
+        Note note = noteRepository.findByUidAndDeletedTrue(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
+        
+        // 删除标签关联
+        noteTagRepository.deleteByNoteUid(uid);
+        
+        // 删除版本历史
+        noteVersionRepository.deleteByNoteUid(uid);
+        
+        // 永久删除笔记
+        noteRepository.delete(note);
+    }
+    
+    @Override
+    public long getDeletedCount() {
+        return noteRepository.countDeleted();
+    }
+    
+    @Override
+    public NoteDTO getDeletedNote(String uid) {
+        Note note = noteRepository.findByUidAndDeletedTrue(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
+        return convertToDTO(note);
     }
 }
 

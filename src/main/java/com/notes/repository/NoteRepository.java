@@ -32,5 +32,13 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     
     @Query("SELECT n FROM Note n WHERE n.deleted = false AND n.folderUid = :folderUid AND (n.title LIKE %:keyword% OR n.contentText LIKE %:keyword%) ORDER BY n.updatedAt DESC")
     Page<Note> searchByKeywordAndFolder(String keyword, String folderUid, Pageable pageable);
+    
+    // 垃圾桶相关
+    Page<Note> findByDeletedTrueOrderByDeletedAtDesc(Pageable pageable);
+    
+    Optional<Note> findByUidAndDeletedTrue(String uid);
+    
+    @Query("SELECT COUNT(n) FROM Note n WHERE n.deleted = true")
+    long countDeleted();
 }
 

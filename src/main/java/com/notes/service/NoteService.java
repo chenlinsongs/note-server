@@ -26,6 +26,17 @@ public interface NoteService {
     NoteDTO getVersion(String uid, Integer version);
     
     NoteDTO restoreVersion(String uid, Integer version);
+    
+    // 垃圾桶相关
+    Page<NoteListDTO> getDeletedNotes(Pageable pageable);
+    
+    void restoreNote(String uid);
+    
+    void permanentlyDeleteNote(String uid);
+    
+    long getDeletedCount();
+    
+    NoteDTO getDeletedNote(String uid);
 }
 
 

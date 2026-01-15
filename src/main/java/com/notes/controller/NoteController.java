@@ -66,6 +66,38 @@ public class NoteController {
     public ApiResponse<NoteDTO> restoreVersion(@PathVariable String uid, @PathVariable Integer version) {
         return ApiResponse.success("版本恢复成功", noteService.restoreVersion(uid, version));
     }
+    
+    // ================= 垃圾桶相关接口 =================
+    
+    @GetMapping("/trash/list")
+    public ApiResponse<Page<NoteListDTO>> getDeletedNotes(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(noteService.getDeletedNotes(pageable));
+    }
+    
+    @PostMapping("/trash/{uid}/restore")
+    public ApiResponse<Void> restoreNote(@PathVariable String uid) {
+        noteService.restoreNote(uid);
+        return ApiResponse.success("笔记已恢复", null);
+    }
+    
+    @DeleteMapping("/trash/{uid}")
+    public ApiResponse<Void> permanentlyDeleteNote(@PathVariable String uid) {
+        noteService.permanentlyDeleteNote(uid);
+        return ApiResponse.success("笔记已永久删除", null);
+    }
+    
+    @GetMapping("/trash/count")
+    public ApiResponse<Long> getDeletedCount() {
+        return ApiResponse.success(noteService.getDeletedCount());
+    }
+    
+    @GetMapping("/trash/{uid}")
+    public ApiResponse<NoteDTO> getDeletedNote(@PathVariable String uid) {
+        return ApiResponse.success(noteService.getDeletedNote(uid));
+    }
 }
 
 

@@ -16,6 +16,7 @@ public class NoteListDTO {
     private Boolean isPinned;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;  // 删除时间
     private List<TagDTO> tags;
 }
 
