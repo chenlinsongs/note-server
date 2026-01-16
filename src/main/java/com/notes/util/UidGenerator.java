@@ -40,6 +40,10 @@ public class UidGenerator {
         return generateUid("bver_");
     }
     
+    public static String generateSpreadsheetUid() {
+        return generateUid("sheet_");
+    }
+    
     private static String generateUid(String prefix) {
         long timestamp = Instant.now().getEpochSecond();
         String randomPart = generateRandomString(8);
