@@ -14,6 +14,7 @@ public class NoteListDTO {
     private String summary;  // 内容摘要
     private Integer wordCount;
     private Boolean isPinned;
+    private String noteType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;  // 删除时间

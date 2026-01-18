@@ -16,6 +16,7 @@ public class NoteDTO {
     private Integer wordCount;
     private Integer version;
     private Boolean isPinned;
+    private String noteType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<TagDTO> tags;

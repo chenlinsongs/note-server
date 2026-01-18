@@ -38,12 +38,14 @@ CREATE TABLE IF NOT EXISTS notes (
     uid VARCHAR(64) NOT NULL COMMENT '业务主键',
     folder_uid VARCHAR(64) DEFAULT NULL COMMENT '所属文件夹UID',
     title VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '笔记标题',
-    content JSON COMMENT '笔记内容（TipTap JSON格式）',
+    note_type VARCHAR(20) DEFAULT 'document' COMMENT '笔记类型：document/spreadsheet/mindmap/canvas',
+    content JSON COMMENT '笔记内容（TipTap JSON格式或表格JSON）',
     content_text MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT '纯文本内容（用于搜索）',
     content_markdown MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci COMMENT 'Markdown格式（用于导出）',
     word_count INT DEFAULT 0 COMMENT '字数统计',
     version INT DEFAULT 1 COMMENT '当前版本号',
     is_pinned TINYINT(1) DEFAULT 0 COMMENT '是否置顶',
+    sort_order BIGINT DEFAULT NULL COMMENT '排序顺序（按创建时间戳）',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT(1) DEFAULT 0 COMMENT '软删除标记：0-正常，1-已删除',
@@ -51,6 +53,8 @@ CREATE TABLE IF NOT EXISTS notes (
     
     UNIQUE KEY uk_uid (uid),
     INDEX idx_folder_uid (folder_uid),
+    INDEX idx_note_type (note_type),
+    INDEX idx_sort_order (sort_order),
     INDEX idx_created_at (created_at),
     INDEX idx_updated_at (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='笔记表';

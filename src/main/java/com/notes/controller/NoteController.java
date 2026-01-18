@@ -31,6 +31,12 @@ public class NoteController {
         return ApiResponse.success(noteService.getNotes(folderUid, pageable));
     }
     
+    // 获取文件夹下的所有笔记（不分页，用于侧边栏树）
+    @GetMapping("/folder/{folderUid}")
+    public ApiResponse<List<NoteListDTO>> getNotesByFolder(@PathVariable String folderUid) {
+        return ApiResponse.success(noteService.getNotesByFolder(folderUid));
+    }
+    
     @GetMapping("/{uid}")
     public ApiResponse<NoteDTO> getNote(@PathVariable String uid) {
         return ApiResponse.success(noteService.getNote(uid));
@@ -97,6 +103,14 @@ public class NoteController {
     @GetMapping("/trash/{uid}")
     public ApiResponse<NoteDTO> getDeletedNote(@PathVariable String uid) {
         return ApiResponse.success(noteService.getDeletedNote(uid));
+    }
+    
+    // ================= 排序相关接口 =================
+    
+    @PutMapping("/reorder")
+    public ApiResponse<Void> reorderNotes(@RequestBody List<String> noteUids) {
+        noteService.reorderNotes(noteUids);
+        return ApiResponse.success("排序更新成功", null);
     }
 }
 

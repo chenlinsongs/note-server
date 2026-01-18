@@ -18,6 +18,10 @@ public class Note extends BaseEntity {
     @Column(name = "title", nullable = false, length = 500)
     private String title;
     
+    // 笔记类型: document(普通文档), spreadsheet(表格), mindmap(思维导图), canvas(画布)
+    @Column(name = "note_type", length = 20)
+    private String noteType = "document";
+    
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "content", columnDefinition = "json")
     private String content;
@@ -36,6 +40,10 @@ public class Note extends BaseEntity {
     
     @Column(name = "is_pinned")
     private Boolean isPinned = false;
+    
+    // 排序顺序，用于保持文档添加顺序，值越小越靠前
+    @Column(name = "sort_order")
+    private Long sortOrder;
 }
 
 

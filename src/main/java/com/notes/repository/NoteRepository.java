@@ -15,9 +15,9 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     
     Optional<Note> findByUidAndDeletedFalse(String uid);
     
-    Page<Note> findByDeletedFalseOrderByIsPinnedDescUpdatedAtDesc(Pageable pageable);
+    Page<Note> findByDeletedFalseOrderByIsPinnedDescSortOrderDesc(Pageable pageable);
     
-    Page<Note> findByFolderUidAndDeletedFalseOrderByIsPinnedDescUpdatedAtDesc(String folderUid, Pageable pageable);
+    Page<Note> findByFolderUidAndDeletedFalseOrderByIsPinnedDescSortOrderDesc(String folderUid, Pageable pageable);
     
     List<Note> findByDeletedFalse();
     
@@ -40,5 +40,18 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     
     @Query("SELECT COUNT(n) FROM Note n WHERE n.deleted = true")
     long countDeleted();
+    
+    // 按文件夹和类型查询
+    List<Note> findByFolderUidAndNoteTypeAndDeletedFalseOrderByIsPinnedDescSortOrderDesc(String folderUid, String noteType);
+    
+    List<Note> findByFolderUidAndDeletedFalseOrderByIsPinnedDescSortOrderDesc(String folderUid);
+    
+    // 获取文件夹中最大的 sortOrder
+    @Query("SELECT MAX(n.sortOrder) FROM Note n WHERE n.folderUid = :folderUid")
+    Long findMaxSortOrderByFolderUid(String folderUid);
+    
+    // 获取全局最大的 sortOrder
+    @Query("SELECT MAX(n.sortOrder) FROM Note n")
+    Long findMaxSortOrder();
 }
 

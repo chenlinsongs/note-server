@@ -13,6 +13,9 @@ public interface NoteService {
     
     Page<NoteListDTO> getNotes(String folderUid, Pageable pageable);
     
+    // 获取文件夹下的所有笔记（不分页，用于侧边栏）
+    List<NoteListDTO> getNotesByFolder(String folderUid);
+    
     NoteDTO getNote(String uid);
     
     NoteDTO createNote(NoteRequest request);
@@ -37,6 +40,9 @@ public interface NoteService {
     long getDeletedCount();
     
     NoteDTO getDeletedNote(String uid);
+    
+    // 排序相关
+    void reorderNotes(List<String> noteUids);
 }
 
 

@@ -50,11 +50,17 @@ public class NoteServiceImpl implements NoteService {
     public Page<NoteListDTO> getNotes(String folderUid, Pageable pageable) {
         Page<Note> notes;
         if (folderUid != null && !folderUid.isEmpty()) {
-            notes = noteRepository.findByFolderUidAndDeletedFalseOrderByIsPinnedDescUpdatedAtDesc(folderUid, pageable);
+            notes = noteRepository.findByFolderUidAndDeletedFalseOrderByIsPinnedDescSortOrderDesc(folderUid, pageable);
         } else {
-            notes = noteRepository.findByDeletedFalseOrderByIsPinnedDescUpdatedAtDesc(pageable);
+            notes = noteRepository.findByDeletedFalseOrderByIsPinnedDescSortOrderDesc(pageable);
         }
         return notes.map(this::convertToListDTO);
+    }
+    
+    @Override
+    public List<NoteListDTO> getNotesByFolder(String folderUid) {
+        List<Note> notes = noteRepository.findByFolderUidAndDeletedFalseOrderByIsPinnedDescSortOrderDesc(folderUid);
+        return notes.stream().map(this::convertToListDTO).collect(Collectors.toList());
     }
     
     @Override
@@ -89,10 +95,23 @@ public class NoteServiceImpl implements NoteService {
         note.setFolderUid(request.getFolderUid());
         note.setIsPinned(request.getIsPinned() != null && request.getIsPinned());
         
-        // 提取纯文本和字数
-        String contentText = contentExtractor.extractText(request.getContent());
-        note.setContentText(contentText);
-        note.setWordCount(contentExtractor.countWords(contentText));
+        // 设置笔记类型
+        String noteType = request.getNoteType();
+        note.setNoteType(noteType != null && !noteType.trim().isEmpty() ? noteType : "document");
+        
+        // 设置排序顺序（使用当前时间戳，确保新创建的排在后面）
+        note.setSortOrder(System.currentTimeMillis());
+        
+        // 表格类型不需要提取纯文本
+        if ("spreadsheet".equals(note.getNoteType())) {
+            note.setContentText("");
+            note.setWordCount(0);
+        } else {
+            // 提取纯文本和字数
+            String contentText = contentExtractor.extractText(request.getContent());
+            note.setContentText(contentText);
+            note.setWordCount(contentExtractor.countWords(contentText));
+        }
         
         note = noteRepository.save(note);
         
@@ -460,6 +479,7 @@ public class NoteServiceImpl implements NoteService {
         dto.setWordCount(note.getWordCount());
         dto.setVersion(note.getVersion());
         dto.setIsPinned(note.getIsPinned());
+        dto.setNoteType(note.getNoteType() != null ? note.getNoteType() : "document");
         dto.setCreatedAt(note.getCreatedAt());
         dto.setUpdatedAt(note.getUpdatedAt());
         dto.setTags(getNoteTags(note.getUid()));
@@ -473,6 +493,7 @@ public class NoteServiceImpl implements NoteService {
         dto.setTitle(note.getTitle());
         dto.setWordCount(note.getWordCount());
         dto.setIsPinned(note.getIsPinned());
+        dto.setNoteType(note.getNoteType() != null ? note.getNoteType() : "document");
         dto.setCreatedAt(note.getCreatedAt());
         dto.setUpdatedAt(note.getUpdatedAt());
         dto.setDeletedAt(note.getDeletedAt());
@@ -567,6 +588,22 @@ public class NoteServiceImpl implements NoteService {
         Note note = noteRepository.findByUidAndDeletedTrue(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("笔记", "uid", uid));
         return convertToDTO(note);
+    }
+    
+    @Override
+    @Transactional
+    public void reorderNotes(List<String> noteUids) {
+        // 按传入的顺序设置 sortOrder
+        // 使用时间戳基数，列表中第一个元素获得最大的 sortOrder（排在最前面）
+        long baseTime = System.currentTimeMillis();
+        for (int i = 0; i < noteUids.size(); i++) {
+            String uid = noteUids.get(i);
+            noteRepository.findByUidAndDeletedFalse(uid).ifPresent(note -> {
+                // 倒序设置 sortOrder，使得列表中靠前的元素有更大的 sortOrder
+                note.setSortOrder(baseTime - noteUids.indexOf(uid));
+                noteRepository.save(note);
+            });
+        }
     }
 }
 
